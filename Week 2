@@ -1,0 +1,35 @@
+print("=================================")
+print(" EMI MASTER - Loan System ")
+print("=================================")
+
+loan_amount = float(input("Enter Loan Amount (₹): "))
+interest_rate = float(input("Enter Annual Interest Rate (%): "))
+loan_tenure = int(input("Enter Loan Tenure (in months): "))
+
+while True:
+    print("\n====== EMI MASTER MENU ======")
+    print("1. Compute EMI")
+    print("2. View Inputs")
+    print("3. Exit")
+    print("=============================")
+
+    choice = input("Enter your choice: ")
+
+    if choice == "1":
+        monthly_rate = interest_rate / (12 * 100)
+        emi = (loan_amount * monthly_rate * (1 + monthly_rate) ** loan_tenure) / ((1 + monthly_rate) ** loan_tenure - 1)
+        print(f"\nYour Monthly EMI is: ₹{emi:.2f}")
+
+    elif choice == "2":
+        print("\n------ Loan Details ------")
+        print(f"Loan Amount   : ₹{loan_amount:.2f}")
+        print(f"Interest Rate : {interest_rate}% per year")
+        print(f"Loan Tenure   : {loan_tenure} months")
+
+    elif choice == "3":
+        print("Exiting EMI MASTER...")
+        break
+
+    else:
+        print("Invalid choice! Please select 1, 2, or 3.")
+        continue
