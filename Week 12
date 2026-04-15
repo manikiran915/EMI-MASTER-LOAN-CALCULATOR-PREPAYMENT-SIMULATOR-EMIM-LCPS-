@@ -1,0 +1,404 @@
+# =========================================================
+# emimaster/__init__.py (Package Entry Simulation)
+# =========================================================
+
+import csv
+import math
+import pandas as pd
+import matplotlib.pyplot as plt
+
+print("=================================")
+print(" EMI MASTER - Loan Calculator ")
+print("=================================")
+
+loan_records = []
+unique_rates = set()
+
+# =========================================================
+# emimaster/models.py
+# =========================================================
+class Record:
+    def __init__(self, principal):
+        self.principal = principal
+
+
+class Prepayment:
+    def __init__(self, amount):
+        self.amount = amount
+
+
+class Loan(Record):
+    def __init__(self, principal, rate, tenure):
+        super().__init__(principal)
+        self.rate = rate
+        self.tenure = tenure
+        self.remaining_tenure = tenure
+        self.outstanding = principal
+        self.emi = compute_emi(principal, rate, tenure)
+
+    def update_outstanding(self):
+        if self.remaining_tenure <= 0:
+            print("Loan already closed.")
+            return
+
+        monthly_rate = self.rate / (12 * 100)
+        interest = self.outstanding * monthly_rate
+        principal_paid = self.emi - interest
+
+        self.outstanding -= principal_paid
+        self.remaining_tenure -= 1
+
+        if self.outstanding <= 0:
+            self.outstanding = 0
+            self.remaining_tenure = 0
+            print("Loan fully paid!")
+
+    def apply_prepayment(self, amount):
+        if amount <= 0:
+            print("Invalid prepayment amount.")
+            return
+
+        if amount > self.outstanding:
+            print("Prepayment cannot exceed outstanding balance.")
+            return
+
+        prepay = Prepayment(amount)
+        self.outstanding -= prepay.amount
+
+        if self.outstanding == 0:
+            self.remaining_tenure = 0
+            print("Loan closed with prepayment!")
+            return
+
+        monthly_rate = self.rate / (12 * 100)
+
+        try:
+            new_tenure = math.log(self.emi / (self.emi - self.outstanding * monthly_rate)) / \
+                         math.log(1 + monthly_rate)
+
+            self.remaining_tenure = math.ceil(new_tenure)
+            print(f"Tenure reduced! New remaining tenure: {self.remaining_tenure} months")
+
+        except:
+            print("Error recalculating tenure.")
+
+    # -------- ANALYTICS --------
+    def generate_schedule(self):
+        balance = self.principal
+        r = self.rate / (12 * 100)
+
+        months, interest_arr, principal_arr, balance_arr = [], [], [], []
+
+        for m in range(1, self.tenure + 1):
+            interest = balance * r
+            principal = self.emi - interest
+            balance -= principal
+
+            if balance < 0:
+                balance = 0
+
+            months.append(m)
+            interest_arr.append(round(interest, 2))
+            principal_arr.append(round(principal, 2))
+            balance_arr.append(round(balance, 2))
+
+        return months, interest_arr, principal_arr, balance_arr
+
+    def interest_savings(self, prepayment):
+        original_interest = self.emi * self.tenure - self.principal
+
+        temp = Loan(self.principal, self.rate, self.tenure)
+        temp.apply_prepayment(prepayment)
+
+        new_interest = temp.emi * temp.remaining_tenure - self.principal
+
+        return round(original_interest - new_interest, 2)
+
+
+# =========================================================
+# emimaster/calculations.py
+# =========================================================
+def compute_emi(principal, rate, tenure):
+    monthly_rate = rate / (12 * 100)
+    emi = (principal * monthly_rate * (1 + monthly_rate) ** tenure) / \
+          ((1 + monthly_rate) ** tenure - 1)
+    return round(emi, 2)
+
+
+# =========================================================
+# emimaster/utils.py
+# =========================================================
+def validate_loan_input(principal, rate, tenure):
+    if principal <= 0:
+        print("Loan amount must be positive.")
+        return False
+
+    if rate <= 0 or rate > 100:
+        print("Interest rate must be between 0 and 100.")
+        return False
+
+    if tenure <= 0:
+        print("Tenure must be greater than 0.")
+        return False
+
+    return True
+
+
+# =========================================================
+# emimaster/storage.py
+# =========================================================
+def save_to_csv(filename="loans.csv"):
+    try:
+        with open(filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Principal", "Rate", "Tenure"])
+
+            for loan in loan_records:
+                writer.writerow([loan.principal, loan.rate, loan.tenure])
+
+        print("Loans saved successfully!")
+
+    except Exception as e:
+        print("Error saving file:", e)
+
+
+def load_from_csv(filename="loans.csv"):
+    try:
+        with open(filename, mode='r') as file:
+            reader = csv.DictReader(file)
+
+            required_fields = {"Principal", "Rate", "Tenure"}
+
+            if not required_fields.issubset(reader.fieldnames):
+                print("CSV format is corrupted or invalid.")
+                return
+
+            for row in reader:
+                try:
+                    principal = float(row["Principal"])
+                    rate = float(row["Rate"])
+                    tenure = int(row["Tenure"])
+
+                    if not validate_loan_input(principal, rate, tenure):
+                        print("Skipping invalid record:", row)
+                        continue
+
+                    loan = Loan(principal, rate, tenure)
+                    loan_records.append(loan)
+                    unique_rates.add(rate)
+
+                except:
+                    print("Skipping corrupted row:", row)
+
+        print("Loans loaded successfully!")
+
+    except FileNotFoundError:
+        print("No previous records found.")
+
+    except Exception as e:
+        print("Error reading CSV:", e)
+
+
+# =========================================================
+# emimaster/analysis.py
+# =========================================================
+def export_amortization(loan, filename):
+    try:
+        balance = loan.principal
+        monthly_rate = loan.rate / (12 * 100)
+
+        with open(filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Month", "EMI", "Interest", "Principal", "Balance"])
+
+            for month in range(1, loan.tenure + 1):
+                interest = balance * monthly_rate
+                principal_paid = loan.emi - interest
+                balance -= principal_paid
+
+                if balance < 0:
+                    balance = 0
+
+                writer.writerow([
+                    month,
+                    loan.emi,
+                    round(interest, 2),
+                    round(principal_paid, 2),
+                    round(balance, 2)
+                ])
+
+        print(f"Amortization table exported to {filename}")
+
+    except Exception as e:
+        print("Error exporting amortization:", e)
+
+
+# -------- UPDATED VISUALS --------
+def analyze_loan(loan):
+    months, interest, principal, balance = loan.generate_schedule()
+
+    # EMI Breakdown
+    plt.figure()
+    plt.plot(months, interest, label="Interest")
+    plt.plot(months, principal, label="Principal")
+    plt.title("EMI Breakdown")
+    plt.xlabel("Months")
+    plt.ylabel("Amount")
+    plt.legend()
+    plt.grid()
+
+    # Interest vs Principal Bar
+    plt.figure()
+    plt.bar(months, interest, label="Interest")
+    plt.bar(months, principal, bottom=interest, label="Principal")
+    plt.title("Interest vs Principal")
+    plt.xlabel("Months")
+    plt.ylabel("Amount")
+    plt.legend()
+
+    # Outstanding Balance Line
+    plt.figure()
+    plt.plot(months, balance, label="Outstanding Balance")
+    plt.title("Outstanding Balance Over Time")
+    plt.xlabel("Months")
+    plt.ylabel("Balance")
+    plt.legend()
+    plt.grid()
+
+    plt.show()
+
+    # Yearly grouping
+    df = pd.DataFrame({
+        "Month": months,
+        "Interest": interest,
+        "Principal": principal
+    })
+
+    df["Year"] = (df["Month"] - 1) // 12 + 1
+    print("\nYearly Summary:")
+    print(df.groupby("Year").sum())
+
+
+def prepayment_analysis(loan, max_amt):
+    savings = []
+    amounts = list(range(0, int(max_amt) + 1, int(max_amt // 10) or 1))
+
+    for amt in amounts:
+        savings.append(loan.interest_savings(amt))
+
+    plt.figure()
+    plt.plot(amounts, savings, marker='o')
+    plt.title("Prepayment Impact Curve")
+    plt.xlabel("Prepayment Amount")
+    plt.ylabel("Interest Saved")
+    plt.grid()
+    plt.show()
+
+
+# =========================================================
+# emimaster/visual.py
+# =========================================================
+def display_loan(loan, index):
+    print(f"\n------ Loan {index} ------")
+    print(f"Loan Amount       : ₹{loan.principal:,.2f}")
+    print(f"Rate              : {loan.rate}%")
+    print(f"Original Tenure   : {loan.tenure} months")
+    print(f"Remaining Tenure  : {loan.remaining_tenure} months")
+    print(f"EMI               : ₹{loan.emi}")
+    print(f"Outstanding       : ₹{loan.outstanding:,.2f}")
+
+
+# =========================================================
+# MAIN
+# =========================================================
+while True:
+    print("\n====== EMI MASTER MENU ======")
+    print("1. Add Loan")
+    print("2. View Loans")
+    print("3. Unique Rates")
+    print("4. Pay EMI")
+    print("5. Prepayment")
+    print("6. Save")
+    print("7. Load")
+    print("8. Export Table")
+    print("9. Analysis & Graphs")
+    print("10. Exit")
+
+    choice = input("Enter choice: ").strip()
+
+    if choice == "1":
+        try:
+            p = float(input("Amount: "))
+            r = float(input("Rate: "))
+            t = int(input("Tenure: "))
+
+            if not validate_loan_input(p, r, t):
+                continue
+
+            loan = Loan(p, r, t)
+            loan_records.append(loan)
+            unique_rates.add(r)
+
+            print("Loan added!")
+
+        except:
+            print("Invalid input format.")
+
+    elif choice == "2":
+        if not loan_records:
+            print("No loans available.")
+        else:
+            for i, loan in enumerate(loan_records, 1):
+                display_loan(loan, i)
+
+    elif choice == "3":
+        print(unique_rates if unique_rates else "No rates recorded.")
+
+    elif choice == "4":
+        try:
+            i = int(input("Loan No: ")) - 1
+            loan_records[i].update_outstanding()
+        except:
+            print("Invalid input.")
+
+    elif choice == "5":
+        try:
+            i = int(input("Loan No: ")) - 1
+            amt = float(input("Prepayment Amount: "))
+            loan_records[i].apply_prepayment(amt)
+        except:
+            print("Invalid input.")
+
+    elif choice == "6":
+        save_to_csv()
+
+    elif choice == "7":
+        load_from_csv()
+
+    elif choice == "8":
+        try:
+            i = int(input("Loan No: ")) - 1
+            filename = input("Filename: ")
+            export_amortization(loan_records[i], filename)
+        except:
+            print("Invalid input.")
+
+    elif choice == "9":
+        try:
+            i = int(input("Loan No: ")) - 1
+            loan = loan_records[i]
+
+            analyze_loan(loan)
+
+            amt = float(input("Enter prepayment for analysis: "))
+            prepayment_analysis(loan, amt)
+
+        except:
+            print("Invalid input.")
+
+    elif choice == "10":
+        print("Exiting EMI MASTER...")
+        break
+
+    else:
+        print("Invalid choice.")
