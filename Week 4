@@ -1,0 +1,48 @@
+print("=================================")
+print(" EMI MASTER - Loan Calculator ")
+print("=================================")
+
+def validate_rate(rate):
+    if rate <= 0:
+        print("Interest rate must be greater than 0.")
+        return False
+    return True
+
+def validate_tenure(tenure):
+    if tenure <= 0:
+        print("Loan tenure must be greater than 0.")
+        return False
+    return True
+
+def compute_emi(principal, rate, tenure):
+    monthly_rate = rate / (12 * 100)
+    emi = (principal * monthly_rate * (1 + monthly_rate) ** tenure) / ((1 + monthly_rate) ** tenure - 1)
+    return emi
+
+def compute_monthly_interest(principal, rate):
+    monthly_rate = rate / (12 * 100)
+    return principal * monthly_rate
+
+def compute_monthly_principal(emi, interest):
+    return emi - interest
+
+loan_amount = float(input("Enter Loan Amount (₹): "))
+interest_rate = float(input("Enter Annual Interest Rate (%): "))
+loan_tenure = int(input("Enter Loan Tenure (months): "))
+
+if not validate_rate(interest_rate) or not validate_tenure(loan_tenure):
+    print("Invalid inputs. Restart program.")
+else:
+    emi = compute_emi(loan_amount, interest_rate, loan_tenure)
+    interest = compute_monthly_interest(loan_amount, interest_rate)
+    principal = compute_monthly_principal(emi, interest)
+
+    print("\n========= EMI DETAILS =========")
+    print(f"Loan Amount : ₹{loan_amount:,.2f}")
+    print(f"Interest Rate : {interest_rate}%")
+    print(f"Loan Tenure : {loan_tenure} months")
+    print("-------------------------------")
+    print(f"Monthly EMI : ₹{emi:.2f}")
+    print(f"Monthly Interest Part : ₹{interest:.2f}")
+    print(f"Monthly Principal Part: ₹{principal:.2f}")
+    print("===============================")
