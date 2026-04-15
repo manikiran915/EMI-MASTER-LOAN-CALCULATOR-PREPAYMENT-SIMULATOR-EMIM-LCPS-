@@ -1,0 +1,210 @@
+import csv
+
+print("=================================")
+print(" EMI MASTER - Loan Calculator ")
+print("=================================")
+
+loan_records = []
+unique_rates = set()
+
+# ---------------- BASE CLASS ----------------
+class Record:
+    def __init__(self, principal):
+        self.principal = principal
+
+
+# ---------------- CHILD CLASS ----------------
+class Loan(Record):
+    def __init__(self, principal, rate, tenure):
+        super().__init__(principal)
+        self.rate = rate
+        self.tenure = tenure
+        self.outstanding = principal
+        self.emi = self.compute_emi()
+
+    def compute_emi(self):
+        monthly_rate = self.rate / (12 * 100)
+        emi = (self.principal * monthly_rate * (1 + monthly_rate) ** self.tenure) / \
+              ((1 + monthly_rate) ** self.tenure - 1)
+        return round(emi, 2)
+
+    def update_outstanding(self):
+        monthly_rate = self.rate / (12 * 100)
+        interest = self.outstanding * monthly_rate
+        principal_paid = self.emi - interest
+        self.outstanding -= principal_paid
+
+        if self.outstanding < 0:
+            self.outstanding = 0
+
+    def apply_prepayment(self, amount):
+        prepay = Prepayment(amount)
+        self.outstanding -= prepay.amount
+
+        if self.outstanding < 0:
+            self.outstanding = 0
+
+    def generate_summary(self):
+        return (self.principal, self.rate, self.tenure, self.emi)
+
+    def export_amortization(self, filename):
+        balance = self.principal
+        monthly_rate = self.rate / (12 * 100)
+
+        with open(filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Month", "EMI", "Interest", "Principal", "Balance"])
+
+            for month in range(1, self.tenure + 1):
+                interest = balance * monthly_rate
+                principal_paid = self.emi - interest
+                balance -= principal_paid
+
+                if balance < 0:
+                    balance = 0
+
+                writer.writerow([
+                    month,
+                    round(self.emi, 2),
+                    round(interest, 2),
+                    round(principal_paid, 2),
+                    round(balance, 2)
+                ])
+
+        print(f"Amortization table exported to {filename}")
+
+    def display(self):
+        print("\n------ Loan Details ------")
+        print(f"Loan Amount : ₹{self.principal:,.2f}")
+        print(f"Rate        : {self.rate}%")
+        print(f"Tenure      : {self.tenure} months")
+        print(f"EMI         : ₹{self.emi}")
+        print(f"Outstanding : ₹{self.outstanding:,.2f}")
+
+
+# ---------------- PREPAYMENT CLASS ----------------
+class Prepayment:
+    def __init__(self, amount):
+        self.amount = amount
+
+
+# ---------------- CSV FUNCTIONS ----------------
+def save_to_csv(filename="loans.csv"):
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Principal", "Rate", "Tenure"])
+
+        for loan in loan_records:
+            writer.writerow([loan.principal, loan.rate, loan.tenure])
+
+    print("Loans saved successfully!")
+
+
+def load_from_csv(filename="loans.csv"):
+    try:
+        with open(filename, mode='r') as file:
+            reader = csv.DictReader(file)
+
+            for row in reader:
+                principal = float(row["Principal"])
+                rate = float(row["Rate"])
+                tenure = int(row["Tenure"])
+
+                loan = Loan(principal, rate, tenure)
+                loan_records.append(loan)
+                unique_rates.add(rate)
+
+        print("Loans loaded successfully!")
+
+    except FileNotFoundError:
+        print("No previous records found.")
+
+
+# ---------------- VALIDATION ----------------
+def validate_rate(rate):
+    return rate > 0
+
+def validate_tenure(tenure):
+    return tenure > 0
+
+
+# ---------------- MENU LOOP ----------------
+while True:
+    print("\n====== EMI MASTER MENU ======")
+    print("1. Add Loan")
+    print("2. View All Loans")
+    print("3. View Unique Interest Rates")
+    print("4. Pay EMI")
+    print("5. Apply Prepayment")
+    print("6. Save Loans to CSV")
+    print("7. Load Loans from CSV")
+    print("8. Export Amortization Table")
+    print("9. Exit")
+    print("=============================")
+
+    choice = input("Enter your choice: ").strip()
+
+    if choice == "1":
+        principal = float(input("Enter Loan Amount (₹): "))
+        rate = float(input("Enter Annual Interest Rate (%): "))
+        tenure = int(input("Enter Loan Tenure (months): "))
+
+        if not validate_rate(rate) or not validate_tenure(tenure):
+            print("Invalid loan details.")
+            continue
+
+        loan = Loan(principal, rate, tenure)
+        loan_records.append(loan)
+        unique_rates.add(rate)
+
+        print("\nLoan added successfully!")
+        print("Quick Summary:", loan.generate_summary())
+
+    elif choice == "2":
+        if not loan_records:
+            print("No loans stored.")
+        else:
+            for i, loan in enumerate(loan_records, start=1):
+                print(f"\nLoan {i}")
+                loan.display()
+
+    elif choice == "3":
+        print(unique_rates if unique_rates else "No interest rates recorded.")
+
+    elif choice == "4":
+        idx = int(input("Select Loan Number: ")) - 1
+        if 0 <= idx < len(loan_records):
+            loan_records[idx].update_outstanding()
+            print("EMI payment applied!")
+        else:
+            print("Invalid selection.")
+
+    elif choice == "5":
+        idx = int(input("Select Loan Number: ")) - 1
+        if 0 <= idx < len(loan_records):
+            amount = float(input("Enter Prepayment Amount: "))
+            loan_records[idx].apply_prepayment(amount)
+            print("Prepayment applied!")
+        else:
+            print("Invalid selection.")
+
+    elif choice == "6":
+        save_to_csv()
+
+    elif choice == "7":
+        load_from_csv()
+
+    elif choice == "8":
+        idx = int(input("Select Loan Number: ")) - 1
+        if 0 <= idx < len(loan_records):
+            filename = input("Enter filename (e.g., table.csv): ")
+            loan_records[idx].export_amortization(filename)
+        else:
+            print("Invalid selection.")
+
+    elif choice == "9":
+        print("Exiting EMI MASTER...")
+        break
+
+    else:
+        print("Invalid choice. Please select 1-9.")
