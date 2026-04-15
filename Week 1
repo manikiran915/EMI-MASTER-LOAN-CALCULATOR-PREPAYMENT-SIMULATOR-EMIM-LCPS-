@@ -1,0 +1,16 @@
+print("======================================")
+print(" EMI MASTER - Loan Details Input ")
+print("======================================")
+
+loan_amount = float(input("Enter Loan Amount (₹): "))
+
+interest_rate = float(input("Enter Annual Interest Rate (%): "))
+
+loan_tenure = input("Enter the loan tenure in months: ")
+
+print("\n========== Loan Information ==========")
+print(f"Loan Amount : ₹{loan_amount:,.2f}")
+print(f"Interest Rate : {interest_rate:.2f}% per year")
+print(f"Loan Tenure : {loan_tenure} months")
+print("======================================")
+
